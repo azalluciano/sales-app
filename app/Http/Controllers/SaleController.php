@@ -127,10 +127,22 @@ class SaleController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Supprimer une vente
      */
-    public function destroy(string $id)
+    public function destroy(Sale $sale)
     {
-        //
+        $sale->delete();
+        return response()->noContent();
+    }
+
+    public function salesByClient() 
+    {
+        //Totale des ventes par client
+        return Client::select('clients.name', 'clients.email')
+            ->selectRaw('SUM(sales.total) as total_sales')
+            ->leftJoin('sales', 'clients.id', '=', 'sales.client_id')
+            ->groupBy('clients.id', 'clients.name', 'clients.email')
+            ->orderByDesc('total_sales')
+            ->get();
     }
 }
