@@ -1,12 +1,24 @@
 <template>
     <div>
-        <router-view></router-view>
+        <NavBar v-if="isAuthenticated" />
+        <router-view />
     </div>
 </template>
 
 <script>
+import NavBar from "./components/NavBar.vue";
+import { isAuthenticated } from "./auth";
+
 export default {
     name: "App",
+    components: {
+        NavBar,
+    },
+    setup() {
+        return {
+            isAuthenticated,
+        };
+    },
 };
 </script>
 

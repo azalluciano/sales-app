@@ -25,7 +25,6 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'reference' => 'required|string|unique:sales',
             'client_id' => 'required|exists:clients,id',
             'items' => 'required|array',
             'items.*.product_id' => 'required|exists:products,id',
@@ -33,9 +32,13 @@ class SaleController extends Controller
         ]);
 
         return DB::transaction(function () use ($validated) {
+            // Générer une référence automatique
+            $date = now()->format('Ymd');
+            $count = Sale::whereDate('created_at', now())->count() + 1;
+            $reference = sprintf('SALE-%s-%03d', $date, $count);
 
             $sale = Sale::create([
-                'reference' => $validated['reference'],
+                'reference' => $reference,
                 'client_id' => $validated['client_id'],
                 'total' => 0,
             ]);
@@ -76,17 +79,12 @@ class SaleController extends Controller
     public function update(Request $request, Sale $sale)
     {
         $validated = $request->validate([
-            'reference' => 'string|unique:sales,reference,' . $sale->id,
             'client_id' => 'exists:clients,id',
             'items' => 'array',
             'items.*.product_id' => 'exists:products,id',
             'items.*.quantity' => 'integer|min:1',
         ]);
         return DB::transaction(function () use ($validated, $sale) {
-            // Sil ya une nouvelle référence, on met à jour la référence de la vente
-            if (isset($validated['reference'])) {
-                $sale->update(['reference' => $validated['reference']]);
-            }
         
             // Si un nouveau client est sélectionn, on met à jour le client de la vente
             if (isset($validated['client_id'])) {
@@ -137,12 +135,28 @@ class SaleController extends Controller
 
     public function salesByClient() 
     {
-        //Totale des ventes par client
-        return Client::select('clients.name', 'clients.email')
-            ->selectRaw('SUM(sales.total) as total_sales')
+        // Total des ventes par client et par produit
+        return Client::select([
+            'clients.id as client_id',
+            'clients.name as client_name',
+            'clients.email as client_email',
+            'products.id as product_id',
+            'products.name as product_name',
+            DB::raw('SUM(sale_items.quantity) as total_quantity'),
+            DB::raw('SUM(sale_items.total) as total_sales')
+        ])
             ->leftJoin('sales', 'clients.id', '=', 'sales.client_id')
-            ->groupBy('clients.id', 'clients.name', 'clients.email')
-            ->orderByDesc('total_sales')
+            ->leftJoin('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+            ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
+            ->groupBy([
+                'clients.id',
+                'clients.name',
+                'clients.email',
+                'products.id',
+                'products.name',
+            ])
+            ->orderBy('clients.name', 'ASC')
+            ->orderBy('total_sales', 'DESC')
             ->get();
     }
 }

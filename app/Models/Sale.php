@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Sale extends Model
 {
-    use Hasfactory;
+    use HasFactory;
 
     protected $fillable = ['reference', 'client_id', 'total'];
 
