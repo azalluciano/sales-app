@@ -2,40 +2,128 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\Client;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SaleController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Afficher la liste des ventes
      */
     public function index()
     {
-        //
+        return Sale::with(['client', 'items.product'])->get();
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Créer une nouvelle vente
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'reference' => 'required|string|unique:sales',
+            'client_id' => 'required|exists:clients,id',
+            'items' => 'required|array',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+
+            $sale = Sale::create([
+                'reference' => $validated['reference'],
+                'client_id' => $validated['client_id'],
+                'total' => 0,
+            ]);
+
+            $total = 0;
+            // Parcours de chaque item envoyé dans la validation
+            foreach ($validated['items'] as $item) {
+                // Recherche du produit correspondant à l'ID dans l'item
+                $product = Product::find($item['product_id']);
+                // Calcul du total partiel pour cet item (prix unitaire * quantité)
+                $itemTotal = $product->retail_price * $item['quantity'];
+                // Création d'une ligne de vente (SaleItem) liée à la vente
+                SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'total' => $itemTotal,
+                ]);
+                $total += $itemTotal;
+            }
+            // Mise à jour du total global dans la table sales
+            $sale->update(['total' => $total]);
+            return $sale->load(['client', 'items.product']);
+        });
     }
 
     /**
-     * Display the specified resource.
+     * Afficher une vente spécifique
      */
-    public function show(string $id)
+    public function show(Sale $sale)
     {
-        //
+        return $sale->load(['client', 'items.product']);
     }
 
     /**
-     * Update the specified resource in storage.
+     * / Mettre à jour une vente
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Sale $sale)
     {
-        //
+        $validated = $request->validate([
+            'reference' => 'string|unique:sales,reference,' . $sale->id,
+            'client_id' => 'exists:clients,id',
+            'items' => 'array',
+            'items.*.product_id' => 'exists:products,id',
+            'items.*.quantity' => 'integer|min:1',
+        ]);
+        return DB::transaction(function () use ($validated, $sale) {
+            // Sil ya une nouvelle référence, on met à jour la référence de la vente
+            if (isset($validated['reference'])) {
+                $sale->update(['reference' => $validated['reference']]);
+            }
+        
+            // Si un nouveau client est sélectionn, on met à jour le client de la vente
+            if (isset($validated['client_id'])) {
+                $sale->update(['client_id' => $validated['client_id']]);
+            }
+        
+            // Si des articles sont fournis, on met à jour les lignes de vente
+            if (isset($validated['items'])) {
+                // On supprime toutes les lignes existantes pour repartir propre
+                $sale->items()->delete();
+        
+                $total = 0;
+        
+                // On recrée les lignes une par une
+                foreach ($validated['items'] as $item) {
+                    $product = Product::find($item['product_id']); 
+                    $itemTotal = $product->retail_price * $item['quantity']; 
+        
+                    // On enregistre la nouvelle ligne de vente
+                    SaleItem::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'total' => $itemTotal,
+                    ]);
+        
+                    $total += $itemTotal;
+                }
+        
+                // Une fois toutes les lignes recréées, on met à jour le total de la ventes
+                $sale->update(['total' => $total]);
+            }
+        
+            // On retourne la vente avec ses relations client et produits pour affichage complet
+            return $sale->load(['client', 'items.product']);
+        });
+        
     }
 
     /**
