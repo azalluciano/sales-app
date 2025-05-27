@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
+/*
+*Toutes les requêtes web seront redirigées vers la vue
+*/
+Route::get('{any}', function () {
+    return view('app');
+})->where('any', '.*');
