@@ -2,47 +2,62 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use Illuminate\Http\Request;
 
 class ClientController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Afficher la liste des clients
      */
     public function index()
     {
-        //
+        return Client::all();
     }
 
     /**
-     * Store a newly created resource in storage.
+     * créer un nouveau client.
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|unique:clients',
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        return Client::create($validated);
     }
 
     /**
-     * Display the specified resource.
+     * Afficher un client spécifique.
      */
-    public function show(string $id)
+    public function show(Client $client)
     {
-        //
+        return $client;
     }
 
     /**
-     * Update the specified resource in storage.
+     * Mettre à jour un client
      */
     public function update(Request $request, string $id)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'string|max:255',
+            'email' => 'string|email|unique:clients,email,' . $client->id,
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        $client->update($validated);
+        return $client;
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Supprimer un client
      */
-    public function destroy(string $id)
+    public function destroy(Client $client)
     {
-        //
+        $client->delete();
+        return response()->noContent();
     }
 }
